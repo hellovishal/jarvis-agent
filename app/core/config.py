@@ -10,8 +10,12 @@ class Settings(BaseSettings):
     debug: bool = True
 
     llm_provider: str = "openrouter"
-    llm_model: str = "google/gemini-2.5-flash"
+    llm_model: str = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
     openrouter_api_key: str = ""
+    workspace_dir: str = "./workspace"
+    llm_timeout_seconds: int = 60
+    llm_max_retries: int = 3
+    llm_retry_base_delay: float = 1.0
 
     database_url: str = "sqlite+aiosqlite:///./jarvis.db"
 

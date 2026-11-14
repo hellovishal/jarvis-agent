@@ -2,21 +2,44 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-
+from openrouter import OpenRouter
+from app.agent.runtime import AgentRuntime
+from app.api.routes.agent import router as agent_router
 from app.api.routes.health import router as health_router
+from app.api.routes.chat import router as chat_router
 from app.core.config import settings
 from app.core.logger import logger, setup_logging
+from app.llm.factory import create_llm_provider
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+
     setup_logging()
+
     logger.info(
         "jarvis_starting",
         environment=settings.app_env,
     )
 
-    yield
+    async with OpenRouter(
+        api_key=settings.openrouter_api_key,
+        x_open_router_title=settings.app_name,
+    ) as client:
+
+        app.state.llm_provider = create_llm_provider(client)
+
+        logger.info("llm_provider_initialized")
+
+        app.state.agent_runtime = AgentRuntime(
+            llm=app.state.llm_provider
+        )
+
+        logger.info("agent_runtime_initialized")
+
+        yield
+
+        yield
 
     logger.info("jarvis_shutting_down")
 
@@ -24,18 +47,22 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description="A personal agentic AI assistant.",
-    version="0.1.0",
+    version="0.2.0",
     debug=settings.debug,
     lifespan=lifespan,
 )
 
 app.include_router(health_router)
-
+app.include_router(chat_router, prefix="/api/v1")
+app.include_router(
+    agent_router,
+    prefix="/api/v1/agent",
+)
 
 @app.get("/")
 async def root():
     return {
         "message": "Welcome to Jarvis Agent",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "status": "running",
     }
