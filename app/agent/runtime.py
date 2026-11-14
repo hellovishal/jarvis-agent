@@ -3,7 +3,9 @@ from app.agent.state import AgentState, AgentStatus
 from app.core.config import settings
 from app.memory.manager import MemoryManager
 from app.tools import create_tool_engine
-
+from app.planning.executor import PlanExecutor
+from app.planning.planner import Planner
+from app.planning.models import ExecutionPlan
 
 class AgentRuntime:
 
@@ -23,6 +25,9 @@ class AgentRuntime:
             tool_registry=self.tool_registry,
             tool_executor=self.tool_executor,
         )
+        
+        self.planner = Planner(self.llm)
+        self.plan_executor = PlanExecutor(self.agent_loop)
 
     async def run(
         self,
@@ -68,3 +73,7 @@ class AgentRuntime:
             )
 
         return state, conversation_id
+    
+    async def run_plan(self, user_goal: str) -> ExecutionPlan:
+        plan = await self.planner.create_plan(user_goal)
+        return await self.plan_executor.execute(plan)

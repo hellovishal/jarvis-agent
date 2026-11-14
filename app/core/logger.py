@@ -9,7 +9,7 @@ def setup_logging() -> None:
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
-        level=logging.DEBUG,
+        level=logging.INFO,
     )
 
     structlog.configure(

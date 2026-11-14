@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Request
 from app.core.logger import logger
 from app.agent.schemas import AgentRequest, AgentResponse
 from app.agent.state import AgentStatus
+from app.planning.models import ExecutionPlan
+from app.planning.schemas import PlanRequest
 
 router = APIRouter(tags=["Agent"])
 
@@ -48,3 +50,37 @@ async def run_agent(
         completion_tokens=state.total_completion_tokens,
         error=state.error,
     )
+    
+    
+    
+@router.post("/plan", response_model=ExecutionPlan)
+async def execute_plan(
+    request: Request,
+    payload: PlanRequest,
+):
+    try:
+        runtime = request.app.state.agent_runtime
+
+        plan = await runtime.run_plan(payload.goal)
+
+        return plan
+
+    except ValueError as error:
+        logger.warning(
+            "Plan creation failed",
+            error=str(error),
+        )
+        raise HTTPException(
+            status_code=422,
+            detail="Unable to create a valid execution plan",
+        ) from error
+
+    except Exception as error:  # noqa: BLE001
+        logger.exception(
+            "Plan execution failed",
+            error_type=type(error).__name__,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Plan execution failed",
+        ) from error

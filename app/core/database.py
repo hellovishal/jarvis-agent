@@ -7,12 +7,22 @@ from app.core.config import settings
 
 class Database:
 
-    def __init__(self):
+    def __init__(self, database_url: str | None = None):
+        self.database_url = database_url or settings.database_url
         self.db = None
 
     async def connect(self):
+        database_url = self.database_url
 
-        db_path = Path(settings.database_url).resolve()
+        # Normalize SQLite URLs if provided.
+        if database_url.startswith("sqlite+aiosqlite:///"):
+            database_url = database_url.removeprefix(
+                "sqlite+aiosqlite:///"
+            )
+        elif database_url.startswith("sqlite:///"):
+            database_url = database_url.removeprefix("sqlite:///")
+
+        db_path = Path(database_url).resolve()
 
         # Create parent directory if it doesn't exist.
         db_path.parent.mkdir(
@@ -20,15 +30,11 @@ class Database:
             exist_ok=True,
         )
 
-        self.db = await aiosqlite.connect(
-            str(db_path)
-        )
+        self.db = await aiosqlite.connect(str(db_path))
 
         self.db.row_factory = aiosqlite.Row
 
-        await self.db.execute(
-            "PRAGMA foreign_keys = ON"
-        )
+        await self.db.execute("PRAGMA foreign_keys = ON")
 
         await self.initialize()
 
@@ -62,6 +68,41 @@ class Database:
                 importance INTEGER DEFAULT 3,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
+            
+            CREATE TABLE IF NOT EXISTS plans (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                goal TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS plan_tasks (
+                plan_id TEXT NOT NULL,
+                task_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                dependencies TEXT NOT NULL DEFAULT '[]',
+                status TEXT NOT NULL,
+                result TEXT,
+                error TEXT,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                PRIMARY KEY (plan_id, task_id),
+
+                FOREIGN KEY (plan_id)
+                    REFERENCES plans(id)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_plans_user_id
+            ON plans(user_id);
+
+            CREATE INDEX IF NOT EXISTS idx_plan_tasks_status
+            ON plan_tasks(plan_id, status);
 
             CREATE INDEX IF NOT EXISTS idx_messages_conversation
             ON messages(conversation_id);
