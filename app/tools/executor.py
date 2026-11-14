@@ -3,8 +3,9 @@ import asyncio
 
 from pydantic import ValidationError
 
-from app.tools.registry import ToolRegistry
+from app.core.logger import logger
 from app.tools.permissions import ToolPermissionManager
+from app.tools.registry import ToolRegistry
 from app.tools.schemas import ToolResult
 
 
@@ -50,7 +51,7 @@ class ToolExecutor:
                 data=result,
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ToolResult(
                 tool_name=tool_name,
                 success=False,
@@ -64,7 +65,13 @@ class ToolExecutor:
                 error=str(error),
             )
 
-        except Exception:
+        except Exception as error:  # noqa: BLE001
+            logger.exception(
+                "Unexpected tool execution failure",
+                tool_name=tool_name,
+                error_type=type(error).__name__,
+            )
+
             return ToolResult(
                 tool_name=tool_name,
                 success=False,

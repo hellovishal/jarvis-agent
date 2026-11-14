@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.tools.base import BaseTool
 
-
 MAX_FILE_SIZE = 1024 * 1024
 
 

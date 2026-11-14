@@ -1,16 +1,16 @@
-
-from app.agent.context import build_initial_messages
 from app.agent.loop import AgentLoop
-from app.agent.state import AgentState
+from app.agent.state import AgentState, AgentStatus
 from app.core.config import settings
+from app.memory.manager import MemoryManager
 from app.tools import create_tool_engine
 
 
 class AgentRuntime:
 
-    def __init__(self, llm):
+    def __init__(self, llm, memory_manager: MemoryManager):
 
         self.llm = llm
+        self.memory_manager = memory_manager
 
         # Initialize Tool Engine.
         self.tool_registry, self.tool_executor = (
@@ -24,11 +24,47 @@ class AgentRuntime:
             tool_executor=self.tool_executor,
         )
 
-    async def run(self, user_message: str) -> AgentState:
+    async def run(
+        self,
+        user_message: str,
+        user_id: str = "local-user",
+        conversation_id: str | None = None,
+    ) -> tuple[AgentState, str]:
 
+        # 1. Create or reuse conversation.
+        if conversation_id is None:
+            conversation_id = (
+                await self.memory_manager.create_conversation(user_id)
+            )
+
+        # 2. Persist incoming user message.
+        await self.memory_manager.save_message(
+            conversation_id,
+            "user",
+            user_message,
+        )
+
+        # 3. Retrieve conversation history + long-term memories.
+        messages = await self.memory_manager.build_context(
+            user_id=user_id,
+            conversation_id=conversation_id,
+        )
+
+        # 4. Initialize Agent State using memory context.
         state = AgentState(
-            messages=build_initial_messages(user_message),
+            messages=messages,
             max_iterations=settings.max_agent_iterations,
         )
 
-        return await self.agent_loop.run(state)
+        # 5. Execute Agent Loop.
+        state = await self.agent_loop.run(state)
+
+        # 6. Persist assistant response.
+        if state.status == AgentStatus.COMPLETED and state.final_answer:
+            await self.memory_manager.save_message(
+                conversation_id,
+                "assistant",
+                state.final_answer,
+            )
+
+        return state, conversation_id

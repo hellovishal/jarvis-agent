@@ -111,7 +111,7 @@ class AgentLoop:
         except Exception as error:
 
             state.status = AgentStatus.FAILED
-            state.error = str(error)
+            state.error = "Agent execution failed"
 
             logger.exception(
                 "agent_execution_failed",
